@@ -2,7 +2,6 @@ library(dplyr)
 library(tidyverse)
 
 ####Loading Data####
-
 library(readr)
 df_anchor <- df <- read_csv("Ian+Study+1a_R_August+23,+2021_09.20.csv")
 df$id <- 1:nrow(df)
