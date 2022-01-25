@@ -1,0 +1,526 @@
+---
+title: "S1a_R brms"
+author: "Ian Hajnosz"
+date: "10/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Data Cleaning
+
+# Loading in the Data
+```{r}
+library(readr)
+df_anchor <- df <- read_csv("Ian+Study+1a_R_August+23,+2021_09.20.csv")
+df$id <- 1:nrow(df)
+```
+Added a "df_anchor" object just to have a base dataframe to refer to
+
+## Handling the Variable Columns
+Removing unnecessary columns, Converting to appropriate data type
+```{r}
+library(dplyr)
+library(tidyverse)
+df <- select(df,
+             -(StartDate:UserLanguage))
+df <- select(df,
+             -c(BFI_DO, EC_DO, Attach_DO, RNSF1_DO, KM_P_DO, KM_CSR_DO, KM_M_DO, KM_L_DO, RNSF2_DO, Q12.1_DO, SC0, FL_3_DO))
+
+df <- df[-c(1,2), ] #remove the first two rows (meta-data)
+df[, c(1:76, 78:79, 81:82, 84:88)] <-  sapply(df[, c(1:76, 78:79, 81:82, 84:88)], as.numeric) #making sure data is correct type
+
+```
+
+Renaming of columns into something more palatable
+```{r}
+df <- rename(df, 
+             Consent = Q1.2,
+             Vid_SelfRep = Q12.1,
+             Vid_Audio = Q12.4,
+             Vid_Issue = Q12.2,
+             Vid_Issue_TEXT = Q12.2_2_TEXT,
+             Vid_PrevExp = Q12.3,
+             Cond = FL_5_DO)
+
+df <- mutate(df, Cond = 
+               recode(Cond,
+                      'VideoCondition1"ThaiMedicine"Zickfeldetal.2019' = "1",
+                      'VideoNeutral1"CleanHardwoodFloors"(Riveraetal.,2019)' = "0")
+)
+df$Vid_PrevExp <- factor(df$Vid_PrevExp)
+df$Cond <- as.numeric(df$Cond)
+```
+
+## Pre-processing
+
+```{r}
+##Recoding amiss values
+#Race
+df$Race[df$Race_10_TEXT == "british asian-indian"] <- 9
+df$Race[df$Race_10_TEXT == "White, Slavic"] <- 0
+
+##Tidying Factor Variables (E.g.Demographics)
+factor(df$Gender)#checking for levels used
+df$Gender <- factor(df$Gender, labels = c(
+  "Female", "Male"))
+```
+Now that those odd responses have been re-coded properly, we can make sure the variables are the correct type and are representing the correct things from the survey
+
+```{r}
+factor(df$Race)#checking for levels used
+df$Race <- factor(df$Race, labels = c(
+  "White, Caucasian, Anglo", 
+  "Black, African, Caribbean",
+  "Hispanic, Latino/a, Chicano/a",
+  "East Asian", 
+  "South Asian",
+  "Southeast Asian", 
+  "West Asian",
+  "Middle Easter, Arab",
+  "Aboriginal, Indigenous, Native",
+  "Mixed or Multiple Ethnic Groups",
+  "Other"
+))
+
+factor(df$Education)#checking for levels used
+df$Education <- factor(df$Education, labels = c(
+  "GCSE, O-Levels, or Standard Grades",
+  "A-Levels or Highers/Advanced Highers",
+  "Vocational degree (e.g., SVQ, HNC, HND",
+  "Undergraduate degree (e.g., BSc, BA)",
+  "Master's degree (e.g., MSc, MPhil)",
+  "PhD, PsyD",
+  "Other advanced or professional degree (e.g., MD, JD)"
+))
+
+df$Student <- factor(df$Student, labels = c(
+  "No", "Yes"
+))
+
+df$Employed <- factor(df$Employed, labels = c(
+  "No",
+  "Yes, part-time",
+  "Yes, full-time"
+))
+
+factor(df$Income)#checking levels used
+df$Income <- factor(df$Income, labels = c(
+  "£0-£12,500",
+  "£12,501-£14,549",
+  "£14,550-£24,944",
+  "£24,945-£43,430",
+  "£43,431-£150,000",
+  "£150,001+"
+))
+
+factor(df$SexualOr)
+df$SexualOr <- factor(df$SexualOr, labels = c(
+  "Heterosexual, Straight",
+  "Gay", 
+  "Lesbian",
+  "Queer", 
+  "Bisexual, Pansexual",
+  "Demisexual",
+  "Asexual",
+  "Other"
+))
+
+```
+
+# Construct Tabulation
+
+We have a couple of constructs to put together, properly reverse scoring certain items as well.
+First we'll do the personality measure
+```{r}
+##reverse-scored items and creating collated Scores
+
+##BFI Personality
+#reverse coding equation: (total available responses +1) - score
+#Extraversion: items 1R, 6, 11
+df$BFI_1R <- (7+1) - df$BFI_1
+df$BFI_E <- rowMeans(df[,c('BFI_1R', 'BFI_6', 'BFI_11')], na.rm = T)
+
+#Agreeableness 2,7R,12
+df$BFI_7R <- (7+1) - df$BFI_7
+df$BFI_A <- rowMeans(df[,c('BFI_2', 'BFI_7R', 'BFI_12')], na.rm = T)
+
+#Conscientiousness: 3R, 8R, 13
+df$BFI_3R <- (7+1) - df$BFI_3
+df$BFI_8R <- (7+1) - df$BFI_8
+df$BFI_C <- rowMeans(df[,c('BFI_3R', 'BFI_8R', 'BFI_13')], na.rm = T)
+
+#Neuroticism: 4,9,14R
+df$BFI_14R <- (7+1) - df$BFI_14
+df$BFI_N <- rowMeans(df[,c('BFI_4', 'BFI_9', 'BFI_14R')], na.rm = T)
+
+#Openmindedness: 5, 10R, 15
+df$BFI_10R <- (7+1) - df$BFI_10
+df$BFI_O <- rowMeans(df[,c('BFI_5', 'BFI_10R', 'BFI_15')], na.rm = T)
+```
+
+Now to Empathic Concern
+```{r}
+##EC Empathic Concern IRI
+#should be on 0-4 scale, not 1-5
+df[, c("EC_1","EC_2", "EC_3", "EC_4","EC_5","EC_6", "EC_7")] <- df[, c("EC_1","EC_2", "EC_3", "EC_4","EC_5","EC_6", "EC_7")]-1
+#reverse coding equation, incl a zero point: (total available responses-1) - score
+#items: 1, 2R, 3, 4R, 5R, 6, 7
+df$EC_2R <- 4 - df$EC_2
+df$EC_4R <- 4 - df$EC_4
+df$EC_5R <- 4 - df$EC_5
+df$EC <- rowMeans(df[, c("EC_1", "EC_2R", "EC_3", "EC_4R", "EC_5R", "EC_6", "EC_7")], na.rm = T)
+```
+
+Now to Global Attachment
+```{r}
+##Attach General/Global Attachment
+#reverse coding equation: (total available responses +1) - score
+#Attachment Avoidance items: 1R, 2R, 3R, 4R, 5 , 6
+df$Attach_1R <- 8 - df$Attach_1
+df$Attach_2R <- 8 - df$Attach_2
+df$Attach_3R <- 8 - df$Attach_3
+df$Attach_4R <- 8 - df$Attach_4
+df$Attach_avd <- rowMeans(df[, c("Attach_1R", "Attach_2R", "Attach_3R", "Attach_4R", "Attach_5", "Attach_6")], na.rm = T)
+#Attachment Anxiety items: 7,8,9
+df$Attach_anx <- rowMeans(df[, c("Attach_7", "Attach_8", "Attach_9")], na.rm = T)
+```
+
+Now to Relatedness Needs Time 1
+```{r}
+##RNSF1 Relatedness Needs Satisfaction/Frustration Time 1
+#RNS items: 1, 2, 3, 4
+df$RNS1 <- rowMeans(df[, c("RNSF1_1","RNSF1_2","RNSF1_3","RNSF1_4")])
+#RNF items: 5,6,7,8
+df$RNF1 <- rowMeans(df[, c("RNSF1_5","RNSF1_6","RNSF1_7","RNSF1_8")])
+```
+
+Now to Kama Muta
+Each of kama muta's five aspects should be on a 0-6 scale, not the 1-7 scale it currently is. So let's fix that first:
+```{r}
+df[, c("KM_P_1","KM_P_2", "KM_P_3", "KM_P_4" ,"KM_P_5", "KM_P_6", "KM_P_7", "KM_P_8", "KM_P_9", "KM_P_10", "KM_P_11","KM_P_12")] <- 
+  df[, c("KM_P_1","KM_P_2", "KM_P_3", "KM_P_4" ,"KM_P_5", "KM_P_6", "KM_P_7", "KM_P_8", "KM_P_9", "KM_P_10", "KM_P_11","KM_P_12")]-1
+
+df[, c("KM_CSR_1","KM_CSR_2","KM_CSR_3", "KM_CSR_4", "KM_CSR_5")] <- 
+  df[, c("KM_CSR_1","KM_CSR_2","KM_CSR_3", "KM_CSR_4", "KM_CSR_5")]-1
+
+df[, c("KM_M_1","KM_M_2", "KM_M_3", "KM_M_4")] <- 
+  df[, c("KM_M_1","KM_M_2", "KM_M_3", "KM_M_4")]-1
+
+df[, ("KM_PA_1")] <- 
+  df[, ("KM_PA_1")]-1
+
+df[, c("KM_L_1", "KM_L_2", "KM_L_3")] <- 
+  df[, c("KM_L_1", "KM_L_2", "KM_L_3")]-1
+```
+Now we can condense them together into individual aspects
+
+```{r}
+df$KM_P <- rowMeans(df[, c("KM_P_1","KM_P_2", "KM_P_3", "KM_P_4" ,"KM_P_5", "KM_P_6", "KM_P_7", "KM_P_8", "KM_P_9", "KM_P_10", "KM_P_11","KM_P_12")], na.rm = T)
+df$KM_CSR <- rowMeans(df[, c("KM_CSR_1","KM_CSR_2","KM_CSR_3", "KM_CSR_4")], na.rm = T)  #note, KM_CSR_5 not included here b/c it was a attention check item, not part of the scale
+df$KM_M <- rowMeans(df[, c("KM_M_1","KM_M_2", "KM_M_3", "KM_M_4")], na.rm = T)
+df$KM_PA <- df$KM_PA_1
+df$KM_L <- rowMeans(df[, c("KM_L_1", "KM_L_2", "KM_L_3")], na.rm = T)
+```
+
+Note that one of our variables, KM_CSR_5 was actually a sneaked-in attention check, thus we didn't use it in the KM_CSR scoring.
+Let's call out that attention check clearly now and remove the confusing variable
+```{r}
+#Attention check was placed on KM_CSR_5
+df$AttCheck <- df$KM_CSR_5 #correct answer "Not at all" is coded as 0
+df <- select(df, -KM_CSR_5)
+
+```
+
+Now to Relatedness Needs (again) but Time 2
+```{r}
+##RNSF2 Relatedness Needs Satisfaction/Frustration Time 2
+#RNS items: 1, 2, 3, 4
+df$RNS2 <- rowMeans(df[, c("RNSF2_1","RNSF2_2","RNSF2_3","RNSF2_4")])
+#RNF items: 5,6,7,8
+df$RNF2 <- rowMeans(df[, c("RNSF2_5","RNSF2_6","RNSF2_7","RNSF2_8")])
+```
+
+### Now that we have our variables mostly coded, let's look at discrepancies
+First attention checks
+```{r}
+
+##Checking attention check, correct answer "Not at all" is coded as 0
+table((df$AttCheck[df$AttCheck != 0]), exclude = NULL) #8 failed attention checks
+df$AttCheck <- ifelse(df$AttCheck == 0,
+                      "Pass",
+                      "Fail")
+```
+
+How about issues with watching the video?
+```{r}
+unique(df$Vid_Issue_TEXT)
+length(unique(df$Vid_Issue_TEXT))-1 #3 total issues;NA is counted as "unique" so removing by 1 that to get true count
+nrow(df) - sum(is.na(df$Vid_Issue_TEXT))#3, alternative calculation of NAs and non-NAs in the video issue text var
+df$Vid_Issue <- factor(df$Vid_Issue)
+```
+
+Ok, to make sure our final n we're dealing with is clean of exclusion problems, lets go top to bottom filtering out problem participants, checking along the way how many got caught out
+
+First by consent
+Second by passing attention check
+```{r}
+##Segmenting Out for Final df, by priority of importance
+nrow(df) #initial check
+#consent, must be confirmed
+df <- subset(df, Consent == 1)
+
+#attention check, must be successful. 
+df <- subset(df, AttCheck == "Pass")
+
+nrow(df)#after those "hard" cuts, we're down to 298 
+
+```
+Third by correctly reporting that they watched the video presented to them
+This is a bit trickier to line up what they said with what we know they saw, AND by what condition that forced them to watch one or the other
+```{r}
+#video condition/self-report confirmation
+#3 == KM video, 7 == floor clean video: Conditions 1 KM, 0 Neutral
+df$Vid_Check <- paste(df$Vid_SelfRep, df$Cond) #only want "3 1" or " 7 0", all other combinations are incorrect
+table(df$Vid_Check, exclude = NULL) #looks like 1 failed check, 4 NA checks (people who were assigned conditions but didn't get to responding, likely from test runs). 146/147 exp/con split
+df$Vid_Check <- ifelse(df$Vid_Check == "3 1" | df$Vid_Check == "7 0",
+                       "Pass",
+                       "Fail")
+table(df$Vid_Check, exclude = NULL) #Confirmed, 5 fail, 293 pass
+df$Cond <- factor(df$Cond, levels = c(0, 1), labels = c("Control", "KM")) 
+
+#Vid condition check,successful
+df <- subset(df, Vid_Check == "Pass")
+
+nrow(df)# current 293, confirmed 5 cut from the video attention check
+
+```
+
+### Ok now let's create our final variables that we'll be using
+First, the probability of experiencing kama muta, pKM. This is a quantitative formalization of how, at this point, the KAMMUS Two scale is really about showing the likelihood a given experience is kama muta based on the co-occurence of these 5 aspects. This is an explicit quantification of that concept by using a sigmoid function, the  S curve used in logistic regressions. We do some scaling of the kama muta variables to make that fit (e.g. the sigmoid(0) refers to a 50% likelihood, meaning we need the kama muta variables scaled such that getting, e.g., 3 out of 7 (the middle point) on all five aspects should will be scaled to 0. We do this via subtracting 3 from the average of KM variables and dividing by 1. 
+After that, we have values capapble of fitting into a sigmoid function
+```{r}
+#Pre-Analysis variable creation
+##I need to make averages of each part first
+df$KM_Avg <- (df$KM_P + df$KM_CSR + df$KM_M + df$KM_PA + df$KM_L)/5
+#b/c sigmoid(0) = 0.5, you need the input values to be both above and below 0 to access the full 0.0-1.0 function range.
+#a simple zscore would make the mean of the data the zero point, which is not what we want. We want the middlest point of the SCALE to reflect the zero point.
+df$KM_Scl <- (df$KM_Avg - 3)/1 #scaling such that the "mean" is == 0. I.e. if a participant had an avg resp of 3 (the middle of the 0-6 range) across all 5 KM sections, they would get a 0, therefore a 50% probability KM
+df$pKM <- 1/(1+(exp(1)^-(df$KM_Scl))) #sigmoid function: 1/(1+e^-x)
+```
+
+Now we have our variables of interest, we can standardize them
+```{r}
+#standardize data
+
+df$pKM_Z <- scale(df$pKM)
+df$RNF1_Z <- scale(df$RNF1)
+df$RNF2_Z <- scale(df$RNF2)
+df$RNS1_Z <- scale(df$RNS1)
+df$RNS2_Z <- scale(df$RNS2)
+df$Attach_anx_Z <- scale(df$Attach_anx)
+df$Attach_avd_Z <- scale(df$Attach_avd)
+```
+
+### Visualizing what we have
+```{r}
+#demographic distributions, histograms(age, race/ethnicity, gender)
+library(ggplot2)
+library(gridExtra)
+library(viridis)
+
+hist(df$Age_1)
+plot(df$Race)
+plot(df$Gender)
+plot(df$Income)
+```
+
+```{r}
+df_p <- df %>% 
+  select("RNF1_Z", "RNF2_Z") %>% 
+  pivot_longer(cols = c("RNF1_Z", "RNF2_Z"),
+               names_to = "Time",
+               values_to = "Score")
+
+
+p1 <- ggplot(df_p, aes(Score, group = Time, fill = Time)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete = T) +
+  scale_color_viridis(discrete = T)
+
+p2 <- ggplot(df_p, aes(Score, group = Time, fill = Time)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete = T) +
+  scale_color_viridis(discrete = T)
+
+grid.arrange(p1,p2, nrow = 1)
+```
+
+```{r}
+p1 <- ggplot(df, aes(RNF1_Z, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p2 <- ggplot(df, aes(RNF2_Z, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p3 <- ggplot(df, aes(RNS1_Z, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p4 <- ggplot(df, aes(RNS2_Z, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+grid.arrange(p1,p2,p3,p4, nrow = 2)
+```
+
+```{r}
+df_p <- df %>% 
+  select("RNS1_Z", "RNS2_Z") %>% 
+  pivot_longer(cols = c("RNS1_Z", "RNS2_Z"),
+               names_to = "Time",
+               values_to = "Score")
+p1 <- ggplot(df_p, aes(Score, group = Time, fill = Time)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete = T) +
+  scale_color_viridis(discrete = T)
+
+df_p <- df %>% 
+  select("RNF1_Z", "RNF2_Z") %>% 
+  pivot_longer(cols = c("RNF1_Z", "RNF2_Z"),
+               names_to = "Time",
+               values_to = "Score")
+
+p2 <- ggplot(df_p, aes(Score, group = Time, fill = Time)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete = T) +
+  scale_color_viridis(discrete = T)
+
+grid.arrange(p1,p2, nrow = 1)
+```
+
+pKM by Condition
+```{r}
+ggplot(df, aes(Cond, pKM, fill = Cond)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "black", alpha = 0.4)
+
+```
+
+KM aspects by Condition
+```{r}
+p1 <- ggplot(df, aes(KM_P, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p2 <- ggplot(df, aes(KM_CSR, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p3 <- ggplot(df, aes(KM_M, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p4 <- ggplot(df, aes(KM_PA, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+p5 <- ggplot(df, aes(KM_L, group = Cond, fill = Cond)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE)
+
+grid.arrange(p1,p2,p3,p4,p5, nrow = 2)
+```
+
+Let's see if technical difficulties made big differences. I.e. did people who have tech difficulties very different from the rest of the sample?
+```{r}
+table(df$Vid_Issue, df$Cond) #no huge difference between conditions on tech difficulties. Only a few anyway
+ggplot(df, aes(Vid_Issue, pKM, fill = Vid_Issue)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "black", alpha = 0.4)
+```
+
+What about previous experience with the video clips?
+```{r}
+ggplot(df, aes(Cond, pKM, fill = Vid_PrevExp)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "black", alpha = 0.4)
+
+df[df$Cond == "KM",] %>% 
+  group_by(Vid_PrevExp) %>% 
+  summarise_at(vars(pKM), list(pKM = mean)) #so a slight difference, again prevExp seems to heighten the KM a tiny bit if anything (though may be self-selection, e.g. EC)
+
+```
+So not a big difference. While the mid quantiles of KM noprevExp are a tad higher than KM prevExp (see graph), the average pKM of those with experience vs not is very similar. That's probably because those with no experience had a bit wider of a distribution (i.e. that red graph reaches down further than the the blue one, despite the red one being on the whole a tad bigger up top)
+
+### Correlations
+Let's see how some of these items correlate
+```{r}
+library(Hmisc)
+df_cor <- df %>% 
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, Attach_anx, Attach_avd, EC, Vid_PrevExp, pKM)
+rcorr(as.matrix(df_cor))
+
+df_cor <- df %>% 
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, BFI_O, BFI_C, BFI_E, BFI_A, BFI_N)
+rcorr(as.matrix(df_cor))
+
+df_cor <- df %>% 
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, pKM, RNS1, RNS2, RNF1, RNF2)
+rcorr(as.matrix(df_cor))
+
+df_cor <- df %>% 
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, pKM, RNS1, RNS2, RNF1, RNF2, Age_1)
+rcorr(as.matrix(df_cor))
+
+df_cor <- df %>% 
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, pKM, RNS1, RNS2, RNF1, RNF2, Gender)
+df_cor$Gender <- as.numeric(df_cor$Gender)
+rcorr(as.matrix(df_cor))
+```
+
+
+## Now to the Mediation
+
+I have now learned that brms does not handle covariates in the mediation very well (i.e. that RNS1 part seems to muck this up). The results are wildly different from my model with BUGS and from the models Sarah was getting in frequentist (which, while like my first non-informed models which I've since updated, were on the same track as mine)
+```{r}
+library(brms)
+library(rstan)
+options(mc.cores = parallel::detectCores()) 
+rstan_options(auto_write = TRUE)
+library(correlation)
+library(bayestestR)
+library(tidyverse)
+library(tidybayes)
+
+m1mod = bf(pKM_Z ~ Cond)
+ymod = bf(RNS2_Z ~ Cond + pKM_Z + RNS1_Z)
+med_model.1 = brm(ymod + m1mod + set_rescor(FALSE), warmup = 5000,
+                iter = 10000, data = df,
+                prior = c(prior(normal(-0.38,.23), class = 'Intercept'),
+                          prior(normal(-2.2,.17), class = 'Intercept', 
+                                resp = 'pKMZ'),
+                          prior(normal(-.23,.16), class = 'Intercept', 
+                                resp = 'RNS2Z'),
+                          prior(normal(1.47,.11), coef = 'CondKM', resp = 'pKMZ'),
+                          prior(normal(.15,.10), coef = 'CondKM', resp = 'RNS2Z'),
+                          prior(normal(-.07,.08), coef = 'pKM_Z', resp = 'RNS2Z'),
+                          prior(normal( .80, .05), coef = 'RNS1_Z', resp = 'RNS2Z')),
+                save_pars = save_pars(all = TRUE))
+
+mediation(med_model.1, method = 'HDI')
+
+```
+
