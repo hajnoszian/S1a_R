@@ -2196,3 +2196,31 @@ autocorr.plot(RNF_L_Model_res[[1]][,"beta2"], main = "Cond Slope") #
 autocorr.plot(RNF_L_Model_res[[1]][,"beta3"], main = "T1 Slope") #
 
 summary(RNF_L_Model_res) #remember; beta0 = intercept (reflects neutral cond base), beta1 = pKM effect, beta2 = Cond effect, beta3 = T1 Covariate effect
+
+####Visualization####
+library(bayesplot)
+posterior <- as.matrix(RNF_Y_Model_res)
+
+color_scheme_set("viridis")
+mcmc_intervals(posterior, pars = vars(beta0, beta1, beta2, beta3))
+mcmc_dens(posterior, 
+          pars = vars(beta0, beta1, beta2, beta3)
+          ) + 
+  vline_at(c(-.05,.05), 
+           size = 0.25,
+           linetype = 2)
+
+#mcmc_hist(posterior,
+#          pars = vars(beta0)) +
+#  vline_at(c(-.05,.05))
+
+
+posterior <- as.matrix(RNS_Y_Model_res)
+
+mcmc_intervals(posterior, pars = vars(beta0, beta1, beta2, beta3))
+mcmc_dens(posterior, 
+          pars = vars(beta0, beta1, beta2, beta3)
+) + 
+  vline_at(c(-.05,.05), 
+           size = 0.25,
+           linetype = 2)
