@@ -2219,8 +2219,8 @@ posterior <- as.matrix(RNS_Y_Model_res)
 
 mcmc_intervals(posterior, pars = vars(beta0, beta1, beta2, beta3))
 mcmc_dens(posterior, 
-          pars = vars(beta0, beta1, beta2, beta3)
-) + 
-  vline_at(c(-.05,.05), 
-           size = 0.25,
-           linetype = 2)
+          pars = vars(beta1))
+mcmc_intervals(posterior, pars = vars(beta1))
+mcmc_areas(posterior, 
+           pars = vars(beta1),
+           prob = .95)
