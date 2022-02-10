@@ -258,7 +258,11 @@ hist(df$Age_1)
 plot(df$Race)
 plot(df$Gender)
 summary(df$Gender)
+summary(df$Race)
+summary(df$Age_1)
+sd(df$Age_1)
 plot(df$Income)
+summary(df$Income)
 
 
 #RNS/F distributions pre/post, histograms
@@ -2224,3 +2228,4 @@ mcmc_intervals(posterior, pars = vars(beta1))
 mcmc_areas(posterior, 
            pars = vars(beta1),
            prob = .95)
+color_scheme_set("blue")
