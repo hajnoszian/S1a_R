@@ -7,7 +7,10 @@ df_anchor <- df <- read_csv("Ian+Study+1a_R_August+23,+2021_09.20.csv")
 df$id <- 1:nrow(df)
 # ----Removing unnecessary columns, Converting to appropriate data type----
 df <- select(df,
-             -(StartDate:UserLanguage))
+             -(StartDate:Progress))
+
+df <- select(df,
+             -(Finished:UserLanguage))
 df <- select(df,
              -c(BFI_DO, EC_DO, Attach_DO, RNSF1_DO, KM_P_DO, KM_CSR_DO, KM_M_DO, KM_L_DO, RNSF2_DO, Q12.1_DO, SC0, FL_3_DO))
 
@@ -21,13 +24,16 @@ df <- rename(df, Consent = Q1.2,
              Vid_Issue = Q12.2,
              Vid_Issue_TEXT = Q12.2_2_TEXT,
              Vid_PrevExp = Q12.3,
-             Cond = FL_5_DO)
+             Cond = FL_5_DO,
+             Duration = 'Duration (in seconds)'
+             )
 
 df <- mutate(df, Cond = 
                recode(Cond,
                       'VideoCondition1"ThaiMedicine"Zickfeldetal.2019' = "1",
                       'VideoNeutral1"CleanHardwoodFloors"(Riveraetal.,2019)' = "0")
-)
+             )
+df$Duration <- as.numeric(df$Duration)
 df$Vid_PrevExp <- factor(df$Vid_PrevExp)
 df$Cond <- as.numeric(df$Cond)
 df$Cond_01 <-df$Cond #making a numeric based one, just in case Rjags doesn't use the factor contrasts that usual R regressions use (i.e. when a factor, R will turn levels 1,2 into 0,1 for calculations. Idk if Jags will do that)
@@ -205,14 +211,6 @@ nrow(df) - sum(is.na(df$Vid_Issue_TEXT))#3, alternative calculation of NAs and n
 df$Vid_Issue <- factor(df$Vid_Issue)
 
 ##Segmenting Out for Final df, by priority of importance
-nrow(df) #initial check
-#consent, must be confirmed
-df <- subset(df, Consent == 1)
-
-#attention check, must be successful. 
-df <- subset(df, AttCheck == "Pass")
-
-nrow(df)#after those "hard" cuts, we're down to 298 
 
 #video condition/self-report confirmation
 #3 == KM video, 7 == floor clean video: Conditions 1 KM, 0 Neutral
@@ -224,10 +222,35 @@ df$Vid_Check <- ifelse(df$Vid_Check == "3 1" | df$Vid_Check == "7 0",
 table(df$Vid_Check, exclude = NULL) #Confirmed, 5 fail, 293 pass
 df$Cond <- factor(df$Cond, levels = c(0, 1), labels = c("Control", "KM")) 
 
-#Vid condition check,successful
-df <- subset(df, Vid_Check == "Pass")
+df$missing <- NA
+#Duration below 5 minutes
+df$missing[df$Duration <= 300] <- "Sub-5 Min Completion"
 
-nrow(df)# current 293, confirmed 5 cut from the video attention check
+#Vid issue
+table(df$Vid_Issue)
+df$missing[df$Vid_Issue == 2] <- "Video Issue"
+
+#Audio issue
+table(df$Vid_Audio)
+df$missing[df$Vid_Audio == 1] <- "Audio Issue"
+
+#Vid condition check,successful
+df$missing[df$Vid_Check == "Fail" | is.na(df$Vid_Check)] <- "Failed Vid Self Report Attention Check"
+
+#Attention Check
+df$missing[df$AttCheck == "Fail" | is.na(df$AttCheck)] <- "Failed Attention Check"
+
+#Consent
+df$missing[is.na(df$Consent)] <- "No Consent Confirmation"
+
+#Full missing
+missing_table <- table(df$missing)
+
+#Finalizing Cuts
+df <- df %>% 
+  filter(is.na(missing))
+
+nrow(df)
 
 ##Pre-Analysis variable creation
 ##I need to make averages of each part first
@@ -270,7 +293,8 @@ p1 <- ggplot(df, aes(RNF1_Z)) +
   geom_histogram(aes(color = Cond, fill = Cond), 
                  position = 'identity',
                  bins = 10,
-                 alpha = 0.3)df_p <- df %>% 
+                 alpha = 0.3)
+df_p <- df %>% 
   select("RNS1_Z", "RNS2_Z") %>% 
   pivot_longer(cols = c("RNS1_Z", "RNS2_Z"),
                names_to = "Time",
