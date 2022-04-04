@@ -45,6 +45,7 @@ df$Cond_01 <-df$Cond #making a numeric based one, just in case Rjags doesn't use
 #Race
 df$Race[df$Race_10_TEXT == "british asian-indian"] <- 9
 df$Race[df$Race_10_TEXT == "White, Slavic"] <- 0
+table(df$Race)
 
 ##Tidying Factor Variables (E.g.Demographics)
 factor(df$Gender)#checking for levels used
@@ -60,7 +61,7 @@ df$Race <- factor(df$Race, labels = c(
   "South Asian",
   "Southeast Asian", 
   "West Asian",
-  "Middle Easter, Arab",
+  "Middle Eastern, Arab",
   "Aboriginal, Indigenous, Native",
   "Mixed or Multiple Ethnic Groups",
   "Other"
@@ -2253,3 +2254,26 @@ mcmc_areas(posterior,
            pars = vars(beta1),
            prob = .95)
 color_scheme_set("blue")
+
+
+#### Summaries, Visualizations, Write-Up Materials
+#Exclusions
+missing_table
+
+#Total Descriptives
+df %>% select(
+  Gender, Age_1, Race, Education, Employed, Income, SexualOr) %>% 
+  summary()
+#Age
+sd(df$Age_1)
+#Total Count
+nrow(df)
+#Race
+table(df$Race)
+#Sexual Orientation
+table(df$SexualOr)
+
+#Student
+table(df$Student)
+
+library(apaTables)
