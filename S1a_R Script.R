@@ -559,6 +559,7 @@ autocorr.plot(M_Model_res[[1]][,"beta1"], main = "Slope") #
 
 summary(M_Model_res) #want MC error (Time-series SE) to be lower than 1/20th size of parameter SDs
 
+
 ##X-> Y_RNS
 require(rjags)
 RNS_Model <- "model {
