@@ -4,7 +4,7 @@ library(ggplot2)
 library(gridExtra)
 library(viridis)
 library(rjags)
-
+library(reshape2)
 
 ####Loading Data####
 library(readr)
