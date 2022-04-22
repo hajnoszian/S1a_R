@@ -549,6 +549,10 @@ gelman.plot(M_Model_res) #BGR statistic, want closer to 1
 
 effectiveSize(M_Model_res)
 gelman.diag(M_Model_res)
+cbind(
+  melt(effectiveSize(M_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(M_Model_res)[1])
+  )
 
 autocorr.plot(M_Model_res[[1]][,"beta0"], main = "Intercept") #Suggests to me maybe go larger with sampling, correct trend at least
 autocorr.plot(M_Model_res[[1]][,"beta1"], main = "Slope") #
@@ -611,7 +615,10 @@ plot(RNS_Model_res) #Trace plots and parameter density
 gelman.plot(RNS_Model_res) #BGR statistic, want closer to 1
 effectiveSize(RNS_Model_res)
 gelman.diag(RNS_Model_res)
-
+cbind(
+  melt(effectiveSize(RNS_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNS_Model_res)[1])
+)
 
 effectiveSize(RNS_Model_res[[1]][,"beta0"])
 effectiveSize(RNS_Model_res[[1]][,"beta1"])
@@ -677,7 +684,10 @@ plot(RNF_Model_res) #Trace plots and parameter density
 gelman.plot(RNF_Model_res) #BGR statistic, want closer to 1
 effectiveSize(RNF_Model_res)
 gelman.diag(RNF_Model_res)
-
+cbind(
+  melt(effectiveSize(RNF_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNF_Model_res)[1])
+)
 
 effectiveSize(RNF_Model_res[[1]][,"beta0"])
 effectiveSize(RNF_Model_res[[1]][,"beta1"])
@@ -892,7 +902,10 @@ plot(RNS_Y_Model_res) #Trace plots and parameter densities
 gelman.plot(RNS_Y_Model_res) #BGR statistic, quant measure of chain mixing, very close to 1
 effectiveSize(RNS_Y_Model_res)
 gelman.diag(RNS_Y_Model_res)
-
+cbind(
+  melt(effectiveSize(RNS_Y_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNS_Y_Model_res)[1])
+)
 
 effectiveSize(RNS_Y_Model_res[[1]][,"beta0"]) #measure of how many 'effective' independent samples we got
 effectiveSize(RNS_Y_Model_res[[1]][,"beta1"]) 
@@ -977,6 +990,10 @@ plot(RNF_Y_Model_res) #Trace plots and parameter densities
 gelman.plot(RNF_Y_Model_res) #BGR statistic, want closer to 1
 effectiveSize(RNF_Y_Model_res)
 gelman.diag(RNF_Y_Model_res)
+cbind(
+  melt(effectiveSize(RNF_Y_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNF_Y_Model_res)[1])
+)
 
 
 effectiveSize(RNF_Y_Model_res[[1]][,"beta0"]) #with iter=10k, Suggests to me maybe go larger with sampling, correct trend at least
