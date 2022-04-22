@@ -5,7 +5,7 @@ library(gridExtra)
 library(viridis)
 library(rjags)
 library(reshape2)
-
+library(bayestestR)
 
 ####Loading Data####
 library(readr)
