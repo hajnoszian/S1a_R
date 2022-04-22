@@ -6,6 +6,7 @@ library(viridis)
 library(rjags)
 library(reshape2)
 
+
 ####Loading Data####
 library(readr)
 df_anchor <- df <- read_csv("Ian+Study+1a_R_August+23,+2021_09.20.csv")
@@ -559,6 +560,7 @@ autocorr.plot(M_Model_res[[1]][,"beta1"], main = "Slope") #
 
 summary(M_Model_res) #want MC error (Time-series SE) to be lower than 1/20th size of parameter SDs
 
+rope(M_Model_res, range = c(-.05, .05))
 
 ##X-> Y_RNS
 require(rjags)
@@ -629,6 +631,9 @@ autocorr.plot(RNS_Model_res[[1]][,"beta1"], main = "Slope") #
 
 summary(RNS_Model_res)
 
+rope(RNS_Model_res, range = c(-.05, .05))
+
+
 ##X-> Y_RNF
 require(rjags)
 RNF_Model <- "model {
@@ -697,6 +702,8 @@ autocorr.plot(RNF_Model_res[[1]][,"beta0"], main = "Intercept") #Suggests to me 
 autocorr.plot(RNF_Model_res[[1]][,"beta1"], main = "Slope") #
 
 summary(RNF_Model_res)
+
+rope(RNF_Model_res, range = c(-.05, .05))
 
 ##X + Cov -> Y_RNS
 require(rjags)
@@ -922,6 +929,8 @@ autocorr.plot(RNS_Y_Model_res[[1]][,"beta3"], main = "T1 Slope") #
 
 summary(RNS_Y_Model_res) #remember; beta0 = intercept (reflects neutral cond base), beta1 = pKM effect, beta2 = Cond effect, beta3 = T1 Covariate effect
 
+rope(RNS_Y_Model_res, range = c(-.05, .05))
+
 
 #===RNF
 ##XMY Mediation: XM -> Y
@@ -1010,6 +1019,7 @@ autocorr.plot(RNF_Y_Model_res[[1]][,"beta3"], main = "T1 Slope") #
 
 summary(RNF_Y_Model_res) #remember; beta0 = intercept (reflects neutral cond base), beta1 = pKM effect, beta2 = Cond' effect, beta3 = T1 Covariate effect
 
+rope(RNF_Y_Model_res, range = c(-.05, .05))
 
 
 ###########Just to see without T2 covariate--how important was it that we used this design?
