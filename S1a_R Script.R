@@ -772,7 +772,12 @@ effectiveSize(RNS_C_Model_res[[1]][,"beta1"])
 autocorr.plot(RNS_C_Model_res[[1]][,"beta0"], main = "Intercept") 
 autocorr.plot(RNS_C_Model_res[[1]][,"beta1"], main = "Slope") #
 
+cbind(
+  melt(effectiveSize(RNS_C_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNS_C_Model_res)[1])
+)
 summary(RNS_C_Model_res)
+rope(RNS_C_Model_res, range = c(-.05, .05))
 
 ##X + Cov -> Y_RNF
 RNF_C_Model <- "model {
@@ -839,8 +844,12 @@ effectiveSize(RNF_C_Model_res[[1]][,"beta1"])
 autocorr.plot(RNF_C_Model_res[[1]][,"beta0"], main = "Intercept")
 autocorr.plot(RNF_C_Model_res[[1]][,"beta1"], main = "Slope") #
 
+cbind(
+  melt(effectiveSize(RNF_C_Model_res), value.name = "ESS"),
+  as.data.frame(gelman.diag(RNF_C_Model_res)[1])
+)
 summary(RNF_C_Model_res)
-
+rope(RNF_C_Model_res, range = c(-.05, .05))
 
 #====RNS
 ##XMY Mediation: XM -> Y
