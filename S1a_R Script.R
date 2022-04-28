@@ -928,7 +928,7 @@ autocorr.plot(RNS_Y_Model_res[[1]][,"beta3"], main = "T1 Slope") #
 
 
 summary(RNS_Y_Model_res) #remember; beta0 = intercept (reflects neutral cond base), beta1 = pKM effect, beta2 = Cond effect, beta3 = T1 Covariate effect
-
+#to report medians, which is consistent with S1b, use the 50% quantiles
 rope(RNS_Y_Model_res, range = c(-.05, .05))
 
 
