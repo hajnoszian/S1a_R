@@ -483,8 +483,8 @@ df_cor <- df %>%
 rcorr(as.matrix(df_cor))
 
 df_cor <- df %>% 
-  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, pKM, RNS1, RNS2, RNF1, RNF2, Gender)
-df_cor$Gender <- as.numeric(df_cor$Gender)
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, EC, Gender)
+df_cor$Gender <- as.numeric(df_cor$Gender)-1 #just to get to 0(female),1 coding rather than 1,2
 rcorr(as.matrix(df_cor))
 
 
