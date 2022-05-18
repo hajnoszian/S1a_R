@@ -6,6 +6,7 @@ library(viridis)
 library(rjags)
 library(reshape2)
 library(bayestestR)
+library(Hmisc)
 
 ####Loading Data####
 library(readr)
@@ -483,7 +484,7 @@ df_cor <- df %>%
 rcorr(as.matrix(df_cor))
 
 df_cor <- df %>% 
-  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, EC, Gender)
+  select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, EC, Gender, Age_1)
 df_cor$Gender <- as.numeric(df_cor$Gender)-1 #just to get to 0(female),1 coding rather than 1,2
 rcorr(as.matrix(df_cor))
 
