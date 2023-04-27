@@ -272,13 +272,13 @@ df$pKM <- 1/(1+(exp(1)^-(df$KM_Scl))) #sigmoid function: 1/(1+e^-x)
 ##Initial Data Checks
 #standardize data
 
-df$pKM_Z <- scale(df$pKM)
-df$RNF1_Z <- scale(df$RNF1)
-df$RNF2_Z <- scale(df$RNF2)
-df$RNS1_Z <- scale(df$RNS1)
-df$RNS2_Z <- scale(df$RNS2)
-df$Attach_anx_Z <- scale(df$Attach_anx)
-df$Attach_avd_Z <- scale(df$Attach_avd)
+df$pKM_Z <- scale(df$pKM)[,1]
+df$RNF1_Z <- scale(df$RNF1)[,1]
+df$RNF2_Z <- scale(df$RNF2)[,1]
+df$RNS1_Z <- scale(df$RNS1)[,1]
+df$RNS2_Z <- scale(df$RNS2)[,1]
+df$Attach_anx_Z <- scale(df$Attach_anx)[,1]
+df$Attach_avd_Z <- scale(df$Attach_avd)[,1]
 
 #demographic distributions, histograms(age, race/ethnicity, gender)
 library(ggplot2)
@@ -1030,6 +1030,146 @@ autocorr.plot(RNF_Y_Model_res[[1]][,"beta3"], main = "T1 Slope") #
 summary(RNF_Y_Model_res) #remember; beta0 = intercept (reflects neutral cond base), beta1 = pKM effect, beta2 = Cond' effect, beta3 = T1 Covariate effect
 
 rope(RNF_Y_Model_res, range = c(-.05, .05))
+
+###April 2023, Full Mediation Attempt at this
+
+RS.Model <- as.character("
+                        model{
+                        #Prior Distributions
+                        intm ~ dnorm(intmMu,intmTau); #prior for intercept M
+                        inty ~ dnorm(intyMu,intyTau); #prior for intercept Y
+                        a ~ dnorm(muA,aTau); #prior for a
+                        b ~ dnorm(muB,bTau); #prior for b
+                        c ~ dnorm(muC,cTau); #prior for c
+                        d ~ dnorm(muD,dTau); #prior for z, T1 covariate
+                        
+                        intmTau = 1/sigmaIM2
+                        intyTau = 1/sigmaIY2
+                        aTau = 1/sigmaA2
+                        bTau = 1/sigmaB2
+                        cTau = 1/sigmaC2
+                        dTau = 1/sigmaD2
+                        tau.em ~ dnorm(1/am, 1/bm) #prior for error precision M
+                        var_m <- 1/tau.em; #residual variance of M
+                        tau.ey ~ dnorm(1/ay, 1/by); #prior for error precision Y
+                        var_y <- 1/tau.ey; #residual variance of Y
+                        #Outcome Estimators
+                        IE <- a*b;
+                        
+                        for(i in 1:n){
+                        #predicted value
+                        m.prime[i] <- intm +a*x[i];
+                        y.prime[i] <- inty + c*x[i] + b*m[i] + d*z[i];
+                        
+                        #conditional distributions of m and y
+                        m[i] ~ dnorm(m.prime[i], tau.em);
+                        y[i] ~ dnorm(y.prime[i], tau.ey);
+                        } } ")
+
+RS.Model.Data <- list(
+  n = nrow(df),
+  y = df$RNS2_Z[,1],
+  m = df$pKM_Z[,1],
+  x = df$Cond,
+  z = df$RNS1_Z[,1],
+  intmMu = -2.20,
+  sigmaIM2 = .17^2,
+  intyMu = -.38,
+  sigmaIY2 = .23^2,
+  muA = 1.47,
+  sigmaA2 = .11^2,
+  muB = -.07,
+  sigmaB2 = .08^2,
+  muC = .25,
+  sigmaC2 = .15^2,
+  muD = .80,
+  sigmaD2 = .05^2,
+  am = .45^2,
+  bm = .05^2,
+  ay = .37^2,
+  by = .04^2
+)
+
+RS.Model <- jags.model(file = textConnection(RS.Model),
+                          data = RS.Model.Data,
+                          inits = NULL,
+                          n.chains = 3,
+                          quiet = TRUE)
+update(RS.Model, n.iter = 5000)
+RS.Model_res <- coda.samples(RS.Model,
+                                variable.names = c("intmMu", "intyMu", "muA", "muB", "muC", "muD", "IE"),
+                                n.iter = 10000) 
+summary(RS.Model_res)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###Maybe just stick with blavaan?
+
+library(blavaan)
+library(brms)
+library(qgraph)
+library(bayestestR)
+options(mc.cores = parallel::detectCores())
+
+R.model <- '
+#Regressions: Mediators, PA & KM. Priors of parameters + parameters
+pKM_Z ~ prior("normal(1.47,.11)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(-.057,.081)")*pKM_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*pKM_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(.044,.068)")*pKM_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*pKM_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+pKM_Z~ prior("normal(-2.196,.175)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_R <- bsem(R.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_R)
+
+
+plot(fit_R, pars = c(1, 8), plot.type = "trace")#M Side
+ggsave("M_Trace_Plots.png")
+plot(fit_R, pars = c(2:7, 9:10), plot.type = "trace")#R Side
+ggsave("R_Trace_Plots.png")
+plot(fit_R, pars = c(1, 8), plot.type = "acf")#M Side
+ggsave("M_Autorcor_Plots.png")
+plot(fit_R, pars = c(2:7, 9:10), plot.type = "acf")#R Side
+ggsave("R_Autorcor_Plots.png")
+
+blavInspect(fit_R, "neff")
+
+
+
+
+
+
 
 
 ###########Just to see without T2 covariate--how important was it that we used this design?
