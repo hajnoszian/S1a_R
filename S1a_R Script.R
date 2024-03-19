@@ -253,6 +253,7 @@ df$missing[is.na(df$Consent)] <- "No Consent Confirmation"
 
 #Full missing
 missing_table <- table(df$missing)
+df_missing <- df
 
 #Finalizing Cuts
 df <- df %>% 
@@ -297,16 +298,13 @@ summary(df$Income)
 
 
 #RNS/F distributions pre/post, histograms
-p1 <- ggplot(df, aes(RNF1_Z)) +
-  geom_histogram(aes(color = Cond, fill = Cond), 
-                 position = 'identity',
-                 bins = 10,
-                 alpha = 0.3)
+
 df_p <- df %>% 
   select("RNS1_Z", "RNS2_Z") %>% 
   pivot_longer(cols = c("RNS1_Z", "RNS2_Z"),
                names_to = "Time",
                values_to = "Score")
+
 p1 <- ggplot(df_p, aes(Score, group = Time, fill = Time)) +
   geom_density(alpha = 0.6) +
   scale_fill_viridis(discrete = T) +
@@ -333,6 +331,11 @@ ggplot(df_p, aes(Time, Score)) +
 
 grid.arrange(p1,p2, nrow = 1)
 
+p1 <- ggplot(df, aes(RNF1_Z)) +
+  geom_histogram(aes(color = Cond, fill = Cond), 
+                 position = 'identity',
+                 bins = 10,
+                 alpha = 0.3)
 p2 <- ggplot(df, aes(RNF2_Z)) +
   geom_histogram(aes(color = Cond, fill = Cond), 
                  position = 'identity',
@@ -487,6 +490,314 @@ df_cor <- df %>%
   select(KM_P, KM_CSR, KM_M, KM_PA, KM_L, EC, Gender, Age_1)
 df_cor$Gender <- as.numeric(df_cor$Gender)-1 #just to get to 0(female),1 coding rather than 1,2
 rcorr(as.matrix(df_cor))
+
+
+### Maybe just stick with blavaan ###
+
+library(blavaan)
+library(brms)
+library(qgraph)
+library(bayestestR)
+options(mc.cores = parallel::detectCores())
+
+R.model <- '
+#Regressions: Mediators, PA & KM. Priors of parameters + parameters
+pKM_Z ~ prior("normal(1.47,.11)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(-.057,.081)")*pKM_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*pKM_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(.044,.068)")*pKM_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*pKM_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+pKM_Z~ prior("normal(-2.196,.175)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_R <- bsem(R.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_R)
+
+library(bayesplot)
+library(ggplot2)
+color_scheme_set("viridis")
+
+plot(fit_R, pars = c(1, 8), plot.type = "trace")#M Side
+ggsave("M_Trace_Plots.png")
+plot(fit_R, pars = c(2:7, 9:10), plot.type = "trace")#R Side
+ggsave("R_Trace_Plots.png")
+plot(fit_R, pars = c(1, 8), plot.type = "acf")#M Side
+ggsave("M_Autorcor_Plots.png")
+plot(fit_R, pars = c(2:7, 9:10), plot.type = "acf")#R Side
+ggsave("R_Autorcor_Plots.png")
+
+blavInspect(fit_R, "neff")
+
+###Exploratory Direct Test
+
+R.expl.model <- '
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+'
+
+fit_R.expl. <- bsem(R.expl.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_R.expl.)
+
+### Exploratory Components Tests ###
+#Subcomponents
+df <- df |> mutate(
+  KM_CSR_Z = scale(KM_CSR)[,1],
+  KM_L_Z = scale(KM_L)[,1],
+  KM_M_Z = scale(KM_M)[,1],
+  KM_P_Z = scale(KM_P)[,1],
+  KM_PA_Z = scale(KM_PA)[,1],
+  EC_Z = scale(EC)[,1]
+  )
+
+#### CSR
+CSR.model <- '
+#Regressions: Mediators, Priors of parameters + parameters
+KM_CSR_Z ~ prior("normal(0,2)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(0,2)")*KM_CSR_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*KM_CSR_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(0,2)")*KM_CSR_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*KM_CSR_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+KM_CSR_Z~ prior("normal(0,2)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_CSR.blav <- bsem(CSR.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_CSR.blav) #CSR matters
+blavInspect(fit_CSR.blav, "neff")
+
+#### L
+L.model <- '
+#Regressions: Mediators, Priors of parameters + parameters
+KM_L_Z ~ prior("normal(0,2)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(0,2)")*KM_L_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*KM_L_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(0,2)")*KM_L_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*KM_L_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+KM_L_Z~ prior("normal(0,2)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_L.blav <- bsem(L.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_L.blav) #eh, same as overall pKM
+blavInspect(fit_L.blav, "neff")
+
+#### M
+M.model <- '
+#Regressions: Mediators, Priors of parameters + parameters
+KM_M_Z ~ prior("normal(0,2)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(0,2)")*KM_M_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*KM_M_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(0,2)")*KM_M_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*KM_M_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+KM_M_Z~ prior("normal(0,2)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_M.blav <- bsem(M.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_M.blav) #null to negative really
+blavInspect(fit_M.blav, "neff")
+
+#### P
+P.model <- '
+#Regressions: Mediators, Priors of parameters + parameters
+KM_P_Z ~ prior("normal(0,2)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(0,2)")*KM_P_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*KM_P_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(0,2)")*KM_P_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*KM_P_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+KM_P_Z~ prior("normal(0,2)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_P.blav <- bsem(P.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_P.blav) #meh to positive
+blavInspect(fit_P.blav, "neff")
+
+#### PA
+PA.model <- '
+#Regressions: Mediators, Priors of parameters + parameters
+KM_PA_Z ~ prior("normal(0,2)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(0,2)")*KM_PA_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*KM_PA_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(0,2)")*KM_PA_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*KM_PA_Z + cRF1*Cond + dRF*RNF1_Z
+
+
+#Intercepts: 
+KM_PA_Z~ prior("normal(0,2)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_PA.blav <- bsem(PA.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_PA.blav) # positive here
+blavInspect(fit_PA.blav, "neff")
+
+#EC
+R.EC.model <- '
+#Regressions: Mediators, PA & KM. Priors of parameters + parameters
+pKM_Z ~ prior("normal(1.47,.11)")*Cond + 
+ ai1*Cond
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(-.057,.081)")*pKM_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z + prior("normal(0,2)")*EC_Z +
+bRSi*pKM_Z + cRS1*Cond + dRS*RNS1_Z + eRS*EC_Z
+
+RNF2_Z ~ prior("normal(.044,.068)")*pKM_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z + prior("normal(0,2)")*EC_Z +
+bRFi*pKM_Z + cRF1*Cond + dRF*RNF1_Z + eRF*EC_Z
+
+
+#Intercepts: 
+pKM_Z~ prior("normal(-2.196,.175)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
+
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_R.EC <- bsem(R.EC.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_R.EC) #pKM effect doesn't change basically at all (tgoodness) EC does emerge as more important though. So yay in some ways I guess
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ####Bayesian Estimation...attempt####
@@ -1107,63 +1418,6 @@ summary(RS.Model_res)
 
 
 
-
-
-
-
-
-
-
-###Maybe just stick with blavaan?
-
-library(blavaan)
-library(brms)
-library(qgraph)
-library(bayestestR)
-options(mc.cores = parallel::detectCores())
-
-R.model <- '
-#Regressions: Mediators, PA & KM. Priors of parameters + parameters
-pKM_Z ~ prior("normal(1.47,.11)")*Cond + 
- ai1*Cond
-
-#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
-RNS2_Z ~ prior("normal(-.057,.081)")*pKM_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
-bRSi*pKM_Z + cRS1*Cond + dRS*RNS1_Z
-
-RNF2_Z ~ prior("normal(.044,.068)")*pKM_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
-bRFi*pKM_Z + cRF1*Cond + dRF*RNF1_Z
-
-
-#Intercepts: 
-pKM_Z~ prior("normal(-2.196,.175)")*1 +
-ai0*1
-RNS2_Z ~ prior("normal(-.353,.241)")*1 +
-cRS0*1
-RNF2_Z ~ prior("normal(.323,.208)")*1 +
-cRF0*1
-
-#Outcome Estimators:
-IRS_M_KM:= bRSi*ai1
-IRS_M_Con:= bRSi*ai0
-IRF_M_KM:= bRFi*ai1
-IRF_M_Con:= bRFi*ai0
-'
-
-fit_R <- bsem(R.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
-summary(fit_R)
-
-
-plot(fit_R, pars = c(1, 8), plot.type = "trace")#M Side
-ggsave("M_Trace_Plots.png")
-plot(fit_R, pars = c(2:7, 9:10), plot.type = "trace")#R Side
-ggsave("R_Trace_Plots.png")
-plot(fit_R, pars = c(1, 8), plot.type = "acf")#M Side
-ggsave("M_Autorcor_Plots.png")
-plot(fit_R, pars = c(2:7, 9:10), plot.type = "acf")#R Side
-ggsave("R_Autorcor_Plots.png")
-
-blavInspect(fit_R, "neff")
 
 
 
