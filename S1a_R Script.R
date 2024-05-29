@@ -271,6 +271,14 @@ df$pKM <- 1/(1+(exp(1)^-(df$KM_Scl))) #sigmoid function: 1/(1+e^-x)
 
 
 ##Initial Data Checks
+
+#Alphas
+ltm::cronbach.alpha(df[,c("KM_P", "KM_CSR", "KM_M", "KM_PA", "KM_L")], standardized = T, CI = T, na.rm = T)
+ltm::cronbach.alpha(df[, c("RNSF1_1","RNSF1_2","RNSF1_3","RNSF1_4")], standardized = T, CI = T, na.rm = T)
+ltm::cronbach.alpha(df[, c("RNSF1_5","RNSF1_6","RNSF1_7","RNSF1_8")], standardized = T, CI = T, na.rm = T)
+ltm::cronbach.alpha(df[, c("RNSF2_1","RNSF2_2","RNSF2_3","RNSF2_4")], standardized = T, CI = T, na.rm = T)
+ltm::cronbach.alpha(df[, c("RNSF2_5","RNSF2_6","RNSF2_7","RNSF2_8")], standardized = T, CI = T, na.rm = T)
+
 #standardize data
 
 df$pKM_Z <- scale(df$pKM)[,1]
@@ -529,7 +537,7 @@ IRF_M_Con:= bRFi*ai0
 '
 
 fit_R <- bsem(R.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
-summary(fit_R)
+summary(fit_R, rsquare = T)
 
 library(bayesplot)
 library(ggplot2)
@@ -545,6 +553,15 @@ plot(fit_R, pars = c(2:7, 9:10), plot.type = "acf")#R Side
 ggsave("R_Autorcor_Plots.png")
 
 blavInspect(fit_R, "neff")
+ppmc_fit_R <- ppmc(fit_R, thin = 100, fit.measures = c("srmr","chisq","rmsea","cfi"), discFUN = NULL,
+     conditional = FALSE)
+
+summary(ppmc_fit_R)#need reading, but current understanding is not good but not bad. Seems very social science normal tbh
+plot(ppmc_fit_R)
+hist(ppmc_fit_R)
+rope(fit_R, range = c(-.05, .05), ci = .95)
+
+insight::get_parameters(fit_R)
 
 ###Exploratory Direct Test
 
@@ -610,6 +627,8 @@ IRF_M_Con:= bRFi*ai0
 fit_CSR.blav <- bsem(CSR.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_CSR.blav) #CSR matters
 blavInspect(fit_CSR.blav, "neff")
+bayestestR::rope(fit_CSR.blav, range = c(-.05, .05), ci = .95)
+
 
 #### L
 L.model <- '
@@ -643,6 +662,8 @@ IRF_M_Con:= bRFi*ai0
 fit_L.blav <- bsem(L.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_L.blav) #eh, same as overall pKM
 blavInspect(fit_L.blav, "neff")
+bayestestR::rope(fit_L.blav, range = c(-.05, .05), ci = .95)
+
 
 #### M
 M.model <- '
@@ -676,6 +697,8 @@ IRF_M_Con:= bRFi*ai0
 fit_M.blav <- bsem(M.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_M.blav) #null to negative really
 blavInspect(fit_M.blav, "neff")
+bayestestR::rope(fit_M.blav, range = c(-.05, .05), ci = .95)
+
 
 #### P
 P.model <- '
@@ -709,6 +732,8 @@ IRF_M_Con:= bRFi*ai0
 fit_P.blav <- bsem(P.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_P.blav) #meh to positive
 blavInspect(fit_P.blav, "neff")
+bayestestR::rope(fit_P.blav, range = c(-.05, .05), ci = .95)
+
 
 #### PA
 PA.model <- '
@@ -742,6 +767,8 @@ IRF_M_Con:= bRFi*ai0
 fit_PA.blav <- bsem(PA.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_PA.blav) # positive here
 blavInspect(fit_PA.blav, "neff")
+bayestestR::rope(fit_PA.blav, range = c(-.05, .05), ci = .95)
+
 
 #EC
 R.EC.model <- '
@@ -775,9 +802,41 @@ IRF_M_Con:= bRFi*ai0
 fit_R.EC <- bsem(R.EC.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
 summary(fit_R.EC) #pKM effect doesn't change basically at all (tgoodness) EC does emerge as more important though. So yay in some ways I guess
 
+#Previous Experience 
+#1 = no, 2 = yes
+table(df$Vid_PrevExp)
+levels(df$Vid_PrevExp) <- c("No", "Yes")
+
+R.prev.model <- '
+#Regressions: Mediators, PA & KM. Priors of parameters + parameters
+pKM_Z ~ prior("normal(1.47,.11)")*Cond + 
+ ai1*Cond + prior("normal(0,2)")*Vid_PrevExp 
+
+#Regressions: Outcomes, ARC Sat/Frus. Priors of parameters + parameters
+RNS2_Z ~ prior("normal(-.057,.081)")*pKM_Z + prior("normal(.236,.157)")*Cond + prior("normal(.766,.054)")*RNS1_Z +
+bRSi*pKM_Z + cRS1*Cond + dRS*RNS1_Z
+
+RNF2_Z ~ prior("normal(.044,.068)")*pKM_Z + prior("normal(-.217,.136)")*Cond + prior("normal(.804,.046)")*RNF1_Z +
+bRFi*pKM_Z + cRF1*Cond + dRF*RNF1_Z
 
 
+#Intercepts: 
+pKM_Z~ prior("normal(-2.196,.175)")*1 +
+ai0*1
+RNS2_Z ~ prior("normal(-.353,.241)")*1 +
+cRS0*1
+RNF2_Z ~ prior("normal(.323,.208)")*1 +
+cRF0*1
 
+#Outcome Estimators:
+IRS_M_KM:= bRSi*ai1
+IRS_M_Con:= bRSi*ai0
+IRF_M_KM:= bRFi*ai1
+IRF_M_Con:= bRFi*ai0
+'
+
+fit_R.prev <- bsem(R.prev.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
+summary(fit_R.prev)
 
 
 
