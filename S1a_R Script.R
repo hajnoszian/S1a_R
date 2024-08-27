@@ -303,8 +303,24 @@ summary(df$Age_1)
 sd(df$Age_1)
 plot(df$Income)
 summary(df$Income)
+##NEW for Revisions
+df |> 
+  select(RNS1, RNS2, RNF1, RNF2, KM_Avg) |> 
+  summary()
 
-
+df |> 
+  summarise(
+    RNS1mean = mean(RNS1),
+    RNS1sd = sd(RNS1),
+    RNS2mean = mean(RNS2),
+    RNS2sd = sd(RNS2),
+    RNF1mean = mean(RNF1),
+    RNF1sd = sd(RNF1),
+    RNF2mean = mean(RNF2),
+    RNF2sd = sd(RNF2),
+    KMmean = mean(KM_Avg),
+    KMsd = sd(KM_Avg),
+  )
 #RNS/F distributions pre/post, histograms
 
 df_p <- df %>% 
@@ -467,8 +483,7 @@ ggplot(df, aes(Vid_Issue, group = Cond, fill = Cond)) +
 
 table(df$Vid_PrevExp, df$Cond) #1 is no prevExp, 2 is yes prevExp
 ggplot(df, aes(Cond, pKM, fill = Vid_PrevExp)) +
-  geom_violin() +
-  geom_boxplot(width = 0.1, color = "black", alpha = 0.4)
+  geom_boxplot(width = 0.1, color = "black", alpha = 0.4) #no discernible difference, if anything the "surprise" makes more KM
 
 df[df$Cond == "KM",] %>% 
   group_by(Vid_PrevExp) %>% 
@@ -836,10 +851,10 @@ IRF_M_Con:= bRFi*ai0
 '
 
 fit_R.prev <- bsem(R.prev.model, data = df, n.chains = 4, burnin = 5000, sample = 10000, seed = 123)
-summary(fit_R.prev)
+blavaan::summary(fit_R.prev)
 
 
-
+table(df$Cond, df$Vid_PrevExp) #hard to interpret these models since we have only 1 who's seen the control vid
 
 
 
